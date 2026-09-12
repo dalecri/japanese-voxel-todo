@@ -32,10 +32,10 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 
 /* ── Bottom panel — one floating glass card, bottom of screen.
    Default state: docked, riding mostly below the screen edge so just
-   the input row peeks up (extra bottom padding is the tucked-away
-   buffer — always blank, never text, so nothing gets cropped).
-   Tapping the chevron adds ".expanded": the card lifts fully into
-   view with its normal floating margin and the task list opens. ── */
+   the grab handle + input row peek up (extra bottom padding is the
+   tucked-away buffer — always blank, never text, so nothing gets
+   cropped). Tapping the grab handle adds ".expanded": the card lifts
+   fully into view with its normal floating margin and the list opens. ── */
 #bottom-panel{
   position:fixed;z-index:901;
   left:16px;right:16px;
@@ -47,14 +47,14 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
   border:1px solid var(--g-border);
   border-radius:28px;
   box-shadow:var(--g-shadow);
-  padding:16px 18px 40px;
+  padding:14px 18px 44px;
   transform:translateY(32%);
   transition:transform .26s cubic-bezier(.16,1,.3,1), bottom .26s cubic-bezier(.16,1,.3,1), padding .2s ease;
 }
 #bottom-panel.expanded{
   bottom:var(--bar-bot);
   transform:translateY(0);
-  padding:16px 18px calc(env(safe-area-inset-bottom,0px) + 14px);
+  padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 14px);
 }
 
 .header-icon-btn{
@@ -65,8 +65,18 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 }
 .header-icon-btn:hover{opacity:.7}
 .header-icon-btn:active{transform:scale(.9)}
-#toggle-fab svg{transition:transform .22s cubic-bezier(.4,0,.2,1)}
-#toggle-fab.open svg{transform:rotate(180deg)}
+
+/* Grab handle — same affordance as Apple Maps' bottom sheet: a small
+   bar the user taps to slide the panel open/closed. */
+#panel-grabber{
+  width:44px;height:5px;border-radius:3px;
+  background:rgba(255,255,255,.45);
+  margin:0 auto;
+  cursor:pointer;
+  transition:background .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+#panel-grabber:hover{background:rgba(255,255,255,.65)}
 
 /* ── Ambience panel — centered modal, same glass as the bottom panel ── */
 #amb-panel{
@@ -229,8 +239,8 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 
 /* ── Mobile ── */
 @media (max-width:640px){
-  #bottom-panel{padding:14px 16px 36px}
-  #bottom-panel.expanded{padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 12px)}
+  #bottom-panel{padding:12px 16px 42px}
+  #bottom-panel.expanded{padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px)}
   #task-input{font-size:16px}
   #amb-panel{width:min(308px,calc(100vw - 32px))}
   #todo-list-wrap{max-height:min(290px,50vh)}
@@ -268,11 +278,12 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 <canvas id="c"></canvas>
 <div id="lamp-tooltip" class="hidden"></div>
 
-<!-- Bottom panel — one floating card, docked half below the screen edge.
-     The input row is always visible and typable. The chevron toggles the
-     task list open (sliding the whole card up) or closed (docking it
-     back down). -->
+<!-- Bottom panel — one floating card, docked mostly below the screen edge.
+     The input row is always visible and typable. The grab handle bar
+     (à la Apple Maps) toggles the task list open (sliding the whole
+     card up) or closed (docking it back down). -->
 <div id="bottom-panel">
+  <div id="panel-grabber" title="Show tasks"></div>
   <div class="add-panel-input-row">
     <input id="task-input" type="text" placeholder="plant a new task…" maxlength="120" autocomplete="off" spellcheck="false">
     <button id="task-submit" title="Add task">
@@ -281,11 +292,6 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
       </svg>
     </button>
     <div class="add-panel-divider"></div>
-    <button id="toggle-fab" class="header-icon-btn" title="Show tasks">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="18 15 12 9 6 15"/>
-      </svg>
-    </button>
     <button id="settings-fab" class="header-icon-btn" title="Ambience settings">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
@@ -1293,11 +1299,11 @@ function addTodo(){
 }
 
 function updateSubtitle(){
-  const el = document.getElementById('toggle-fab');
+  const el = document.getElementById('panel-grabber');
   if(!el) return;
   const openCount = todos.filter(t=>!t.done).length;
   const label = openCount === 1 ? '1 task' : (openCount + ' tasks');
-  el.title = el.classList.contains('open') ? `Hide tasks (${label})` : `Show tasks (${label})`;
+  el.title = bottomPanel.classList.contains('expanded') ? `Hide tasks (${label})` : `Show tasks (${label})`;
 }
 
 const taskInput = document.getElementById('task-input');
@@ -1309,27 +1315,25 @@ canvas.addEventListener('pointerdown', ()=> taskInput.blur());
 
 document.getElementById('task-submit').addEventListener('click', addTodo);
 
-// ── Chevron toggles the task list open/closed and docks/undocks the
-// panel to match. Typing works at any time since the input is always
-// visible — no separate "open" step needed. ──────────────────────────
-const bottomPanel  = document.getElementById('bottom-panel');
-const todoListWrap = document.getElementById('todo-list-wrap');
-const toggleFab    = document.getElementById('toggle-fab');
+// ── The grab handle (à la Apple Maps) toggles the task list open/closed
+// and docks/undocks the panel to match. Typing works at any time since
+// the input is always visible — no separate "open" step needed. ──────
+const bottomPanel   = document.getElementById('bottom-panel');
+const todoListWrap  = document.getElementById('todo-list-wrap');
+const panelGrabber  = document.getElementById('panel-grabber');
 
 function expandPanel(){
   bottomPanel.classList.add('expanded');
   todoListWrap.classList.remove('hidden');
-  toggleFab.classList.add('open');
   updateSubtitle();
 }
 function collapsePanel(){
   bottomPanel.classList.remove('expanded');
   todoListWrap.classList.add('hidden');
-  toggleFab.classList.remove('open');
   updateSubtitle();
 }
 
-toggleFab.addEventListener('click', e=>{
+panelGrabber.addEventListener('click', e=>{
   e.stopPropagation();
   if(bottomPanel.classList.contains('expanded')) collapsePanel(); else expandPanel();
 });
