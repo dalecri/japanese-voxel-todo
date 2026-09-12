@@ -21,6 +21,7 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
   --g-ink2:  rgba(255,255,255,.72); /* light text — for use on the scene backdrop directly */
   --g-ink3:  rgba(255,255,255,.42);
   --g-green: #58c462;
+  --accent-rose: #f4739a;
   --mono:    'IBM Plex Mono','SF Mono','Fira Mono','Consolas',monospace;
   --sans:    'Inter',system-ui,sans-serif;
   --serif:   'Fraunces',Georgia,serif;
@@ -29,18 +30,33 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
   --bar-bot: max(28px, env(safe-area-inset-bottom, 28px));
 }
 
-/* ── App header — dark bar, title/subtitle left, clean icons right ── */
-#app-header{
-  position:fixed;top:0;left:0;right:0;z-index:903;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 14px;
+/* ── Bottom panel — one floating glass card, bottom of screen.
+   Default state: docked, riding mostly below the screen edge so just
+   the input row peeks up (extra bottom padding is the tucked-away
+   buffer — always blank, never text, so nothing gets cropped).
+   Tapping the chevron adds ".expanded": the card lifts fully into
+   view with its normal floating margin and the task list opens. ── */
+#bottom-panel{
+  position:fixed;z-index:901;
+  left:16px;right:16px;
+  bottom:0;
+  max-width:var(--bar-w);margin:0 auto;
+  display:flex;flex-direction:column;gap:10px;
   background:var(--g-bg);
   backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
-  border-bottom:1px solid var(--g-border);
+  border:1px solid var(--g-border);
+  border-radius:28px;
+  box-shadow:var(--g-shadow);
+  padding:16px 18px 40px;
+  transform:translateY(32%);
+  transition:transform .26s cubic-bezier(.16,1,.3,1), bottom .26s cubic-bezier(.16,1,.3,1), padding .2s ease;
 }
-.app-title{font-family:var(--sans);font-size:20px;font-weight:700;color:#fff;letter-spacing:-.01em}
-.app-subtitle{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.5);margin-top:2px}
-.app-header-right{display:flex;align-items:center;gap:18px}
+#bottom-panel.expanded{
+  bottom:var(--bar-bot);
+  transform:translateY(0);
+  padding:16px 18px calc(env(safe-area-inset-bottom,0px) + 14px);
+}
+
 .header-icon-btn{
   background:none;border:none;padding:0;margin:0;
   width:26px;height:26px;display:flex;align-items:center;justify-content:center;
@@ -49,8 +65,10 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 }
 .header-icon-btn:hover{opacity:.7}
 .header-icon-btn:active{transform:scale(.9)}
+#toggle-fab svg{transition:transform .22s cubic-bezier(.4,0,.2,1)}
+#toggle-fab.open svg{transform:rotate(180deg)}
 
-/* ── Ambience panel — centered modal, same glass as header/add-panel ── */
+/* ── Ambience panel — centered modal, same glass as the bottom panel ── */
 #amb-panel{
   position:fixed;z-index:950;
   top:50%;left:50%;
@@ -70,25 +88,9 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
   transform:translate(-50%,-50%) scale(.94);
 }
 
-/* ── Add-task panel — slides up ~1/4 of the screen from the bottom ── */
-#add-panel{
-  position:fixed;z-index:901;
-  left:0;right:0;bottom:0;
-  height:25vh;min-height:230px;max-height:340px;
-  display:flex;flex-direction:column;gap:10px;
-  padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 12px);
-  background:var(--g-bg);
-  backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
-  border-top:1px solid var(--g-border);
-  box-shadow:var(--g-shadow);
-  transition:transform .26s cubic-bezier(.16,1,.3,1), opacity .2s ease-out;
-  transform:translateY(0);
-}
-#add-panel.hidden{opacity:0;pointer-events:none;transform:translateY(100%)}
+/* Always-visible input row */
 .add-panel-input-row{
-  display:flex;align-items:center;gap:14px;flex-shrink:0;
-  border-bottom:1px solid var(--g-border);
-  padding-bottom:12px;
+  display:flex;align-items:center;gap:12px;flex-shrink:0;
 }
 .add-panel-input-row input{
   flex:1;height:32px;border:none;outline:none;background:none;
@@ -98,13 +100,20 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 .add-panel-input-row input::placeholder{color:rgba(255,255,255,.45);font-style:italic}
 .add-panel-divider{width:1px;align-self:stretch;background:var(--g-border);flex-shrink:0}
 #task-submit{
-  flex-shrink:0;width:26px;height:26px;padding:0;
+  flex-shrink:0;width:22px;height:22px;padding:0;
   background:none;border:none;
   color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:opacity .12s,transform .1s;-webkit-tap-highlight-color:transparent;
 }
 #task-submit:hover{opacity:.7}
 #task-submit:active{transform:scale(.9)}
+
+/* Collapsible task list — hidden/collapsed until the chevron opens it */
+#todo-list-wrap{
+  display:flex;flex-direction:column;
+  max-height:min(320px, 46vh);
+}
+#todo-list-wrap.hidden{display:none}
 
 /* ── Ambience panel internals ── */
 .ap-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
@@ -133,7 +142,7 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 .ap-slider:last-child{margin-bottom:0}
 .ap-slider-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
 .ap-slider-label{font-family:var(--sans);font-size:16px;font-weight:600;color:#fff}
-.ap-slider-val{font-family:var(--mono);font-size:16px;font-weight:700;color:#f0952e}
+.ap-slider-val{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--accent-rose)}
 .ap-slider-track{
   position:relative;height:34px;border-radius:20px;
   background:rgba(255,255,255,.1);
@@ -142,7 +151,7 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 }
 .ap-slider-fill{
   position:absolute;top:0;left:0;bottom:0;border-radius:20px;
-  background:#f0952e;
+  background:var(--accent-rose);
 }
 
 /* Big iOS-style toggle rows */
@@ -154,7 +163,7 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
   position:relative;cursor:pointer;
   transition:background .18s;-webkit-tap-highlight-color:transparent;
 }
-.ap-toggle-big.on{background:#f0952e}
+.ap-toggle-big.on{background:var(--accent-rose)}
 .ap-toggle-big .knob{
   position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
   background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);
@@ -166,63 +175,65 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 /* ── Task list ── */
 #todo-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent;-webkit-overflow-scrolling:touch;padding-right:2px}
 .td-item{
-  display:flex;align-items:center;gap:10px;padding:9px 12px;
-  border-radius:0;cursor:pointer;
-  background:rgba(255,255,255,.5);
-  backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
-  border:1.5px dashed rgba(255,255,255,.5);
-  transition:background .2s,transform .2s;
+  display:flex;align-items:center;gap:10px;padding:12px 16px;
+  border-radius:20px;cursor:pointer;
+  background:rgba(255,214,224,.58);
+  backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);
+  border:1px solid rgba(255,196,212,.55);
+  box-shadow:0 6px 18px rgba(180,50,95,.2), inset 0 1px 0 rgba(255,255,255,.55);
+  transition:background .2s,transform .15s,box-shadow .2s;
   -webkit-tap-highlight-color:transparent;
 }
-.ap-completed-toggle{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 4px;cursor:pointer;
-  background:none;border:none;border-top:1px solid var(--g-border);
-  margin-top:4px;
-  font-family:var(--sans);font-size:12px;color:rgba(255,255,255,.6);
-  letter-spacing:.02em;transition:color .15s;
+.completed-toggle-pill{
+  align-self:center;
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 16px;margin:2px 0;
+  border-radius:999px;cursor:pointer;
+  background:var(--g-bg2);
+  border:1px solid var(--g-border);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(255,255,255,.85);
+  transition:background .15s;
   -webkit-tap-highlight-color:transparent;
 }
-.ap-completed-toggle:hover{color:rgba(255,255,255,.9)}
-.ap-completed-toggle .chev{transition:transform .18s;display:flex;align-items:center}
-.ap-completed-toggle.open .chev{transform:rotate(180deg)}
-.td-item:hover{background:rgba(255,255,255,.68);transform:translateX(2px)}
+.completed-toggle-pill:hover{background:rgba(255,255,255,.32)}
+.completed-toggle-pill .chev{transition:transform .18s;display:flex;align-items:center}
+.completed-toggle-pill.open .chev{transform:rotate(180deg)}
+.td-item:hover{background:rgba(255,224,234,.72);transform:translateY(-1px);box-shadow:0 8px 22px rgba(180,50,95,.26), inset 0 1px 0 rgba(255,255,255,.55)}
 
-/* Completed items — flat divider rows, no pill/glass, quiet and out of the way */
+/* Completed items — same glass card as active ones, just dimmed and struck through */
 .td-item.done{
-  opacity:.5;
-  background:none;border:none;backdrop-filter:none;-webkit-backdrop-filter:none;
-  border-radius:0;
-  border-bottom:1px solid var(--g-border);
-  padding:12px 14px;
+  opacity:.55;
+  background:rgba(255,214,224,.3);
+  box-shadow:none;
 }
-.td-item.done:hover{background:none;transform:none}
+.td-item.done:hover{background:rgba(255,214,224,.38);transform:none;box-shadow:none}
 .td-item.done .td-text{text-decoration:line-through}
 .td-status{
   font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
-  color:#f0952e;margin-bottom:1px;
+  color:#d84d78;margin-bottom:1px;
 }
 .td-check{
   width:20px;height:20px;border-radius:50%;
-  border:2px solid rgba(10,12,18,.25);
+  border:2px solid rgba(180,60,100,.32);
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
   transition:all .22s;color:#fff;font-size:11px;
 }
 .td-item.done .td-check{background:var(--g-green);border-color:var(--g-green);color:#fff}
 .td-text{font-family:var(--sans);font-size:12px;color:var(--g-ink);flex:1;word-break:break-word;line-height:1.4}
 .td-body{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
-.td-date{font-family:var(--mono);font-size:10px;color:rgba(10,12,18,.55);letter-spacing:.02em}
-.td-del{background:none;border:none;color:rgba(10,12,18,.3);font-size:15px;cursor:pointer;padding:3px 5px;flex-shrink:0;transition:color .12s;-webkit-tap-highlight-color:transparent}
-.td-del:hover,.td-del:active{color:rgba(220,60,60,.9)}
+.td-date{font-family:var(--mono);font-size:10px;color:rgba(90,35,55,.55);letter-spacing:.02em}
+.td-del{background:none;border:none;color:rgba(90,35,55,.35);font-size:15px;cursor:pointer;padding:3px 5px;flex-shrink:0;transition:color .12s;-webkit-tap-highlight-color:transparent}
+.td-del:hover,.td-del:active{color:rgba(200,40,80,.9)}
 
 /* ── Mobile ── */
 @media (max-width:640px){
-  #app-header{padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 12px}
-  .app-title{font-size:18px}
-  .app-header-right{gap:14px}
+  #bottom-panel{padding:14px 16px 36px}
+  #bottom-panel.expanded{padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 12px)}
   #task-input{font-size:16px}
   #amb-panel{width:min(308px,calc(100vw - 32px))}
-  #add-panel{height:30vh;min-height:210px}
+  #todo-list-wrap{max-height:min(290px,50vh)}
   .td-item{padding:12px 14px}
   .td-check{width:22px;height:22px}
   .td-text{font-size:13px}
@@ -257,26 +268,36 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
 <canvas id="c"></canvas>
 <div id="lamp-tooltip" class="hidden"></div>
 
-<!-- App header — title/subtitle left, clean icon buttons right (no circle bg) -->
-<div id="app-header">
-  <div class="app-header-left">
-    <div class="app-title">Voxel Garden</div>
-    <div class="app-subtitle" id="app-subtitle">0 tasks</div>
-  </div>
-  <div class="app-header-right">
-    <button id="add-fab" class="header-icon-btn" title="Plant a new task">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+<!-- Bottom panel — one floating card, docked half below the screen edge.
+     The input row is always visible and typable. The chevron toggles the
+     task list open (sliding the whole card up) or closed (docking it
+     back down). -->
+<div id="bottom-panel">
+  <div class="add-panel-input-row">
+    <input id="task-input" type="text" placeholder="plant a new task…" maxlength="120" autocomplete="off" spellcheck="false">
+    <button id="task-submit" title="Add task">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </button>
+    <div class="add-panel-divider"></div>
+    <button id="toggle-fab" class="header-icon-btn" title="Show tasks">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="18 15 12 9 6 15"/>
       </svg>
     </button>
     <button id="settings-fab" class="header-icon-btn" title="Ambience settings">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
         <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
         <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
         <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
       </svg>
     </button>
+  </div>
+
+  <div id="todo-list-wrap" class="hidden">
+    <div id="todo-list"></div>
   </div>
 </div>
 
@@ -298,20 +319,7 @@ body{overflow:hidden;background:#000;font-family:'Inter',system-ui,sans-serif}
   <div class="ap-toggle-list" id="ap-toggles"></div>
 </div>
 
-<!-- Add-task panel — slides up ~1/4 of the screen from the bottom when the
-     header's "+" is tapped. Holds the input plus the existing task list. -->
-<div id="add-panel" class="hidden">
-  <div class="add-panel-input-row">
-    <input id="task-input" type="text" placeholder="plant a new task…" maxlength="120" autocomplete="off" spellcheck="false">
-    <div class="add-panel-divider"></div>
-    <button id="task-submit" title="Add task">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 12h14M12 5l7 7-7 7"/>
-      </svg>
-    </button>
-  </div>
-  <div id="todo-list"></div>
-</div>
+
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/controls/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/"}}</script>
 <script type="module">
@@ -986,11 +994,11 @@ function applyTime(){
   // Exposure — significantly brighter at night
   renderer.toneMappingExposure=(1.1 + day*.2) * AMB.brightness;
   // Task pill items — near-opaque during day
-  const itemAlpha = (0.5 + day * 0.15).toFixed(2);
+  const itemAlpha = (0.72 + day * 0.12).toFixed(2);
   const tdStyle = document.getElementById('td-item-style') || (()=>{
     const el=document.createElement('style');el.id='td-item-style';document.head.appendChild(el);return el;
   })();
-  tdStyle.textContent=`.td-item:not(.done){background:rgba(255,255,255,${itemAlpha}) !important}`;
+  tdStyle.textContent=`.td-item:not(.done){background:rgba(255,214,224,${itemAlpha}) !important}`;
 }
 
 // ── Build world ───────────────────────────────────────────────────────────────
@@ -1129,13 +1137,12 @@ document.getElementById('amb-close').addEventListener('click', e=>{
   document.getElementById('amb-panel').classList.add('hidden');
 });
 
-// ── Settings icon — lives in the app header now, no circle background.
+// ── Settings icon — lives in the header row, no circle background.
 // Plain, fast, no-overshoot open/close — no blur/contrast "goo" hack.
 const settingsFab=document.getElementById('settings-fab'), panel=document.getElementById('amb-panel');
 settingsFab.addEventListener('click', e=>{
   e.stopPropagation();
   const opening = panel.classList.contains('hidden');
-  document.getElementById('add-panel').classList.add('hidden');
   panel.classList.toggle('hidden', !opening);
 });
 
@@ -1264,7 +1271,7 @@ function renderTodos(){
 
   if(doneIdx.length > 0){
     const toggle = document.createElement('div');
-    toggle.className = 'ap-completed-toggle' + (completedOpen?' open':'');
+    toggle.className = 'completed-toggle-pill' + (completedOpen?' open':'');
     toggle.innerHTML = `<span>Completed · ${doneIdx.length}</span><span class="chev"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>`;
     toggle.addEventListener('click', ()=>{ completedOpen = !completedOpen; renderTodos(); });
     list.appendChild(toggle);
@@ -1282,13 +1289,15 @@ function addTodo(){
   todos.unshift({text, done:false, id:Date.now(), createdAt:Date.now()});
   saveTodos(); renderTodos();
   inp.value = '';
+  expandPanel();
 }
 
 function updateSubtitle(){
-  const el = document.getElementById('app-subtitle');
+  const el = document.getElementById('toggle-fab');
   if(!el) return;
   const openCount = todos.filter(t=>!t.done).length;
-  el.textContent = openCount === 1 ? '1 task' : (openCount + ' tasks');
+  const label = openCount === 1 ? '1 task' : (openCount + ' tasks');
+  el.title = el.classList.contains('open') ? `Hide tasks (${label})` : `Show tasks (${label})`;
 }
 
 const taskInput = document.getElementById('task-input');
@@ -1300,28 +1309,40 @@ canvas.addEventListener('pointerdown', ()=> taskInput.blur());
 
 document.getElementById('task-submit').addEventListener('click', addTodo);
 
-// ── "+" header icon — slides the add-task panel up from the bottom ──────────
-const addFab = document.getElementById('add-fab');
-const addPanel = document.getElementById('add-panel');
-addFab.addEventListener('click', e=>{
+// ── Chevron toggles the task list open/closed and docks/undocks the
+// panel to match. Typing works at any time since the input is always
+// visible — no separate "open" step needed. ──────────────────────────
+const bottomPanel  = document.getElementById('bottom-panel');
+const todoListWrap = document.getElementById('todo-list-wrap');
+const toggleFab    = document.getElementById('toggle-fab');
+
+function expandPanel(){
+  bottomPanel.classList.add('expanded');
+  todoListWrap.classList.remove('hidden');
+  toggleFab.classList.add('open');
+  updateSubtitle();
+}
+function collapsePanel(){
+  bottomPanel.classList.remove('expanded');
+  todoListWrap.classList.add('hidden');
+  toggleFab.classList.remove('open');
+  updateSubtitle();
+}
+
+toggleFab.addEventListener('click', e=>{
   e.stopPropagation();
-  const opening = addPanel.classList.contains('hidden');
-  addPanel.classList.add('hidden');
-  panel.classList.add('hidden');
-  if(opening){
-    addPanel.classList.remove('hidden');
-    setTimeout(()=>taskInput.focus(), 260); // wait for slide-up transition
-  }
+  if(bottomPanel.classList.contains('expanded')) collapsePanel(); else expandPanel();
 });
 
-// Click anywhere outside panels dismisses whichever is open
+// Click anywhere outside the panels closes the Ambience modal and
+// docks the bottom panel back down (if it was expanded)
 document.addEventListener('click', ()=>{
   panel.classList.add('hidden');
-  addPanel.classList.add('hidden');
+  if(bottomPanel.classList.contains('expanded')) collapsePanel();
 });
 // Prevent clicks inside panels from bubbling up
 document.getElementById('amb-panel').addEventListener('click', e=>e.stopPropagation());
-addPanel.addEventListener('click', e=>e.stopPropagation());
+bottomPanel.addEventListener('click', e=>e.stopPropagation());
 
 renderTodos();
 updateSubtitle();
